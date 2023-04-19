@@ -4,10 +4,14 @@ const { signToken } = require('../utils/auth')
 
 const resolvers = {
   Query: {
-    me: async () => {
-      return User.find({});
+    me: async (parent, args, context) => {
+      if (context.user) {
+        const userData = await User.findOne({_id: context.user._id}).select("-__v -password");
+        return userData;
+      }
     },
   },
+
   Mutation: {
     login: async (parent, { email, password }) => {
       const user = await User.findOne({ email });
@@ -25,31 +29,38 @@ const resolvers = {
       const token = signToken(user);
       return { token, user };
     },
-    addUser: async (parent, { name, email, password }) => {
-      const user = await User.create({ name, email, password });
+    addUser: async (parent, args) => {
+      const user = await User.create(args);
       const token = signToken(user);
 
       return { token, user };
     },
-    saveBook: async (parent, { userId, bookId }) => {
-      return User.findOneAndUpdate(
-        { _id: userId },
+
+    saveBook: async (parent, { book }, context) => {
+      if (context.user) {
+        const updateUserBooks = await User.findOneAndUpdate(
+        { _id: context.user._id },
         {
-          $addToSet: { savedBooks: {bookId: bookId} },
-        },
+          $addToSet: { savedBooks: book} },
         {
           new: true,
           runValidators: true,
-        }
-      );
+        },
+      )
+      return updateUserBooks;
+      }
     },
-    removeBook: async (parent, { userId, bookId }) => {
-      return User.findOneAndUpdate(
-        { _id: userId },
-        { $pull: { savedBooks: {bookId: bookId} } },
-        { new: true }
-      );
-    },
+
+    removeBook: async (parent, { bookId }, context) => {
+      if (context.user) {
+        const user = await User.findOneAndUpdate(
+          { _id: context.user._id },
+          { $pull: { savedBooks: {bookId: bookId} } },
+          { new: true },
+        )
+        return user;
+      }
+    }
   },
 };
 
